@@ -17,7 +17,7 @@ var sessionCmd = &cobra.Command{
 		if err != nil {
 			log.Fatalf("failed to load config: %v", err)
 		}
-		session.Start(args[0], cfg)
+		session.StartPTYSession(args[0], cfg)
 	},
 }
 

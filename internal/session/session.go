@@ -5,18 +5,20 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/Brikkel/tracebook/internal/config"
 	"github.com/Brikkel/tracebook/internal/diff"
 )
 
-var skipCmds = map[string]bool{
-	"cd": true, "ls": true, "pwd": true, "clear": true,
-}
-
 func Start(sessionName string, cfg *config.Config) {
-	mdFile := sessionName + ".md"
+	// Ensure output directory exists
+	if err := os.MkdirAll(cfg.OutputDir, 0755); err != nil {
+		panic(err)
+	}
+	mdFile := filepath.Join(cfg.OutputDir, sessionName+".md")
 	f, err := os.Create(mdFile)
 	if err != nil {
 		panic(err)
@@ -29,6 +31,12 @@ func Start(sessionName string, cfg *config.Config) {
 	var lastVimFile string
 	var lastVimContent []byte
 
+	// Build skip command map from config
+	skipCmds := make(map[string]bool)
+	for _, cmd := range cfg.SkipCommands {
+		skipCmds[cmd] = true
+	}
+
 	for {
 		fmt.Print("$ ")
 		line, err := reader.ReadString('\n')
@@ -40,6 +48,12 @@ func Start(sessionName string, cfg *config.Config) {
 			continue
 		}
 
+		if line == "exit" || line == "quit" || line == ":q" {
+			fmt.Println("Session ended.")
+			f.WriteString("\n_Session ended at " + time.Now().Format(time.RFC3339) + "_\n")
+			break
+		}
+
 		if strings.HasPrefix(line, "note:") {
 			note := strings.TrimSpace(strings.TrimPrefix(line, "note:"))
 			f.WriteString(note + "\n\n")
@@ -49,6 +63,12 @@ func Start(sessionName string, cfg *config.Config) {
 		cmdName := strings.Fields(line)[0]
 		if skipCmds[cmdName] {
 			continue
+		}
+
+		// Annotate directory if enabled
+		if cfg.AnnotateDirectory {
+			cwd, _ := os.Getwd()
+			f.WriteString(fmt.Sprintf("`%s`\n", cwd))
 		}
 
 		if cmdName == "vim" && len(strings.Fields(line)) > 1 {
